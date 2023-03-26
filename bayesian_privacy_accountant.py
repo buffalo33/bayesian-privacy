@@ -46,7 +46,7 @@ class BayesianPrivacyAccountant:
         self.conf = conf
         self.bayesianDP = bayesianDP
         # total accumulated privacy costs (log of moment generating function) per Renyi order
-        self.privacy_cost = np.zeros_like(self.powers, dtype=np.float_)
+        self.privacy_cost = np.zeros_like(self.powers, dtype=float)
         # total accumulated confidence of Bayesian estimator (eventually, incorporated in delta)
         self.logconf = 0
         # history of minimum privacy cost per iteration
@@ -102,7 +102,6 @@ class BayesianPrivacyAccountant:
                 Subsampling probability (for subsampled mechanisms).
             steps : number, required
                 Number of steps/invocations of the privacy mechanism.
-
             Returns
             -------
             out : tuple
@@ -138,7 +137,6 @@ class BayesianPrivacyAccountant:
                 Subsampling probability (for subsampled mechanisms).
             steps : number, required
                 Number of steps/invocations of the privacy mechanism.
-
             Returns
             -------
             out : tuple
@@ -148,9 +146,10 @@ class BayesianPrivacyAccountant:
         c_R = self._log_binom_expect(power + 1, q, scaled_renyi_fn, rdistr, ldistr)
         logmgf_samples = self.holder_correction * steps * torch.max(c_L, c_R).cpu().numpy()
         n_samples = np.size(logmgf_samples)
-
         if not self.bayesianDP:
-            return np.asscalar(logmgf_samples) / self.holder_correction
+            
+            #return np.asscalar(logmgf_samples) / self.holder_correction
+            return np.max(logmgf_samples) / self.holder_correction
 
         if n_samples < 3:
             raise ValueError("Number of samples is too low for estimating privacy cost.")
@@ -163,13 +162,13 @@ class BayesianPrivacyAccountant:
         # Numerically stable implementation
         max_logmgf = np.max(logmgf_samples)
         log_mgf_mean = -np.log(n_samples) + logsumexp(logmgf_samples)
-        if np.std(logmgf_samples) < np.finfo(np.float).eps:
+        if np.std(logmgf_samples) < np.finfo(float).eps:
             warnings.warn("Variance of privacy cost samples is 0. Privacy estimate may not be reliable!")
             bdp = log_mgf_mean / self.holder_correction
         else:
-            log_mgf_std = 0.5 * (2 * max_logmgf - np.log(n_samples) +\
-                                 np.log(np.sum(np.exp(2 * logmgf_samples - 2 * max_logmgf) -\
-                                               np.exp(2 * log_mgf_mean - 2 * max_logmgf))))
+            log_mgf_std = 0.5 * (2 * max_logmgf - np.log(n_samples) +
+                                 np.log(np.abs(np.sum(np.exp(2 * logmgf_samples - 2 * max_logmgf) -
+                                               np.exp(2 * log_mgf_mean - 2 * max_logmgf)))))
             log_conf_pentalty = np.log(t.ppf(q=self.conf, df=n_samples-1)) + log_mgf_std - 0.5 * np.log(n_samples - 1)
             bdp = logsumexp([log_mgf_mean, log_conf_pentalty]) / self.holder_correction
         
@@ -192,7 +191,6 @@ class BayesianPrivacyAccountant:
                 Parameters of the left distribution (i.e., imposed by D).
             rdistr : tuple or array, required
                 Parameters of the right distribution (i.e., imposed by D').
-
             Returns
             -------
             out : tuple
